@@ -1,0 +1,60 @@
+#!/bin/zsh
+function find_deps() {
+	ldd $1 | sed 's/not a dynamic.*//g' | awk '
+	NF == 4 {
+		print  $3
+	}
+	NF == 2 {
+		print $1
+	}'
+}
+
+function install() {
+	if [ ! -e ${PREFIX}/${1} ]
+	then
+		echo "Installing file ${1}"
+	else
+		return
+	fi
+	file=$1
+	while [ ! -z $(readlink $file) ]
+	do
+		from=${file}
+		to=$(readlink $file)
+		if [ -z "$(echo ${to} | grep -E '^/')" ]
+		then
+			to=$(dirname ${from})/${to}
+		fi
+		mkdir -p $(dirname ${PREFIX}/${from})
+		ln -s ${to} ${PREFIX}/${from}
+		file=${to}
+	done
+	mkdir -p $(dirname ${PREFIX}/${file})
+	cp ${file} ${PREFIX}/${file}
+
+	if [ ! -z "$(file ${PREFIX}/${file} | grep 'ELF')" ]
+	then
+		strip ${PREFIX}/${file}
+	fi
+}
+
+PREFIX=`pwd`
+
+while [ ${#} != 0 ]
+do
+	if [ -e ${1} ]
+	then
+		file=${1}
+	else
+		file=$(which ${1})
+	fi
+	shift
+	if [ ! -z "${file}" ]
+	then
+		install ${file}
+		for dep in $(find_deps ${file}) 
+		do
+			install ${dep}
+		done
+	fi
+done

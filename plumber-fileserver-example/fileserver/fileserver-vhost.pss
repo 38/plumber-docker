@@ -1,0 +1,115 @@
+#!/usr/bin/env pscript
+/**
+ * Copyright (C) 2017, Hao Hou
+ */
+
+/* The Virtual Hosting Static File Server Example */
+import("service");
+import("config");
+
+var get_reader = function(site_list)
+{
+	var num_sites = len(site_list);
+
+	if(site_list["__default__"] == undefined) 
+	{
+		print("Site list must have a default site");
+		return undefined;
+	}
+	
+	var selector_init_arg = "dataflow/demux";
+
+	for(var site in site_list)
+	{
+		if(site != "__default__")
+			selector_init_arg += " " + site;
+	}
+
+	var reader = {
+		selector    := selector_init_arg; 
+		merger      := "dataflow/firstnonempty " + num_sites;
+		error       := "dataflow/firstnonempty " + (2 + num_sites);
+		{
+			(path) -> "data";
+			(host) -> "cond";
+		} selector;
+
+		merger "out" -> (out);
+
+		{
+			selector "__error__" -> "in0";
+			merger   "__error__" -> "in1";
+		} error "out" -> (__error__);
+	};
+	
+	var id = 0;
+	var outid = 0;
+	for(var site in site_list)
+	{
+		var name = "readfile_" + id;
+		var selector_port = "out" + outid;
+
+		if(site == "__default__") selector_port = "default";
+		else outid ++;
+
+		Service.add_node(reader, name, "filesystem/readfile " + site_list[site]);
+		Service.add_pipe(reader, "selector", selector_port, "path", name);
+		Service.add_pipe(reader, name, "result", "in" + id, "merger");
+		Service.add_pipe(reader, name, "__error__", "in" + (2 + id), "error");
+		id++;
+	}
+
+	return reader;
+}
+
+var create_service = function(site_list)
+{
+	var fileserver = {
+		parsereq    := "getpath";
+		parsepath   := "filesystem/parsepath --ext-name";
+		guessmime   := "filesystem/mimetype " + mime_type_file;
+		reader      := get_reader(site_list);
+		error       := "dataflow/firstnonempty 4";
+		genres      := "response";
+
+		/* Parse the request */
+		() -> "request" parsereq {
+			"path" -> "origin" parsepath {
+				/* This is the dataflow for the mime type manipulation */
+				"extname" -> "extname" guessmime "mimetype" -> "mime" genres;
+				/* Here we need to feed the demux */
+				"relative" -> "path" reader;
+			};
+			"host" -> "host" reader;
+		};
+		
+		reader "out" -> "file" genres "output" -> ();
+
+		/* Handle the internal error */
+		{
+			parsereq   "__error__" -> "in0";
+			parsepath  "__error__" -> "in1";
+			guessmime  "__error__" -> "in2";
+			reader     "__error__" -> "in3";
+		} error "out" -> "500" genres;
+
+		/* Handle the 400 error */
+		parsereq "error" -> "400" genres;
+
+		/* Handle the 403 error */
+		parsepath "__null__" -> "403" genres;
+	};
+
+	return fileserver;
+}
+
+server = create_service({
+	"localhost:8080": server_base_dir,
+	__default__     : server_base_dir_2
+});
+
+/* dump the visualization graph */
+Service.visualize(server);
+
+/* then start the file server */
+Service.start(server);

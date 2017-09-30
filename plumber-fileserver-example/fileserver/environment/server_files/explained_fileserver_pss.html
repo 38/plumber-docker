@@ -1,0 +1,317 @@
+<html>
+	<head>
+		<title>
+			Explaination for fileserver.pss
+		</title> 
+		<style>
+			body {
+				width: 60em;
+				margin: 0 auto;
+				font-family: Tahoma, Verdana, Arial, sans-serif;
+				font-size: 18px;
+			}
+			code {
+			  	display: block;
+			  	white-space: pre-wrap;
+				font-size: 16px;
+				background-color: #eee;
+				padding: 15px;
+			}
+			.pss-comment {
+				color: silver;
+				font-style: italic;
+			}
+			.pss-string {
+				color: green;
+			}
+			.pss-variable {
+				color: blue;
+			}
+		</style>
+		<script src="pss-syntax.js"></script>
+		<script>
+			window.onload = function() {
+				var sections = document.getElementsByClassName("section");
+				var toc = document.getElementById("toc");
+				for(var i = 0; i < sections.length; i ++)
+				{
+					var section = sections[i];
+					var text = section.textContent;
+					var node = document.createElement("li");
+					var link = document.createElement("a");
+					link.href = "#section" + i;
+					section.id = "section" + i; 
+					link.innerText = text;
+					node.appendChild(link);
+					toc.appendChild(node);
+				}
+				highLightPssCode();
+			}
+		</script>
+	</head>
+	<body>
+		<h1>Static File Server Example (<a href="fileserver.pss.txt">fileserver.pss</a>)</h1>
+		<ul id="toc">
+		</ul>
+		<h2 class="section">What is it?</h2>
+		<p>
+			You are now reading the documentation for the HTTP server that serves static content, which is written to 
+			demostrate the <a href="https://github.com/38/plumber">Plumber Software Infrastructure</a>. To learn more 
+			about the demo, please go to
+			<a href="https://github.com/38/plumber_examples/tree/master/src/fileserver">the example code on github</a>
+		</p>
+		<p>
+			This file is the entry point of the static file server, you can start the server by running this script.
+			The server is written in the Plumber Service Script (PSS), the script language used by the Plumber Framework. 
+		</p>
+		<h2 class="section">How does it work?</h2>
+		<p>
+			The Plumber Service Script uses a script interpreter called pscript. When you start the server, you are actually
+			running a script in pscript interpreter. The intersting part of the language is, although Plumber framework is desgined
+			for high performance applications, the script language itself doesn't have any performance optimization.
+			Instead of serving traffic from the network, the script code is responsible build the service you need and launch it. 
+		</p>
+		<p>
+			In Plumber framework, services are built up with basic build blocks called servlets (Note please distinguish with Java
+			Servlet). Each servlet is a tiny piece of program with one or more input ports and output ports. When a servlet is
+			activated, it reads the input ports and writes the output ports. Plumber framework provides servlets a runtime environment
+			that connects the ports with pipes in a desired way. An application is built up by connecting those servlets into a
+			graph.
+		</p>
+		<p>
+			The Plumber framework provides a visualization of the service we have made. In the graph, each servlet is represtented by 
+			a node.
+		</p>
+		<p>
+			<code class="pss">Service.visualize(service);"</code>
+		</p>
+		<p>
+			The following picture is a sample of visualization of a servlet node. There are three rows in the servlet node visualization.
+			<center><img src="servlet_repr.png" style="width:300px"/></center>
+			<ul>
+				<li>First row is the list of input ports</li>
+				<li>The second row has two signal pipe "N" and "E", which we will discuss later, and the name of the servlet</li>
+				<li>The last row is the list of output port</li>
+			</ul>
+			Let's look at the service graph that is currently serving traffic. (Note this time we have ignored all the error handling pipes)
+		</p>
+		<center><img src="service_graph.png" style="width:400px"/></center>
+		<p>
+			There are 5 servlet nodes in our server, RequestParser, PathParser, FileReader, MIMEGuesser and ResponseGenerator. Each servlet 
+			node is a program reads inputs and writes output.
+			<ul>
+				<li> <p>
+					<strong>RequestParser: </strong> 
+					Reads HTTP request from the request port and produces the path and the host name client requesting.
+					When the parser gets a malformed HTTP request, "error" port will be touched, but other outputs will remains empty.</p>
+				</li>
+				<li><p>
+					<strong>PathParser: </strong>
+					Reads the original path from the port "origin" and extract simplified path and extension name. For example, if the 
+					original path is "/path/to/file/../file.txt", it will produce "/path/to/file.txt" in the "relative" port and 
+					"txt" in the "extname" port. (Note: this time let's ignore the "prefix" port) </p>
+				</li>
+				<li><p>
+					<strong>FileReader: </strong>
+					Reads a relative path from the "path" port and produces the file content to the "result" port. </p>
+				</li>
+				<li><p>
+					<strong>MIMEGuesser: </strong>
+					Reads a extension name from the "extname" port and try to guess what MIME type the extension name stands for.</p>
+				</li>
+				<li><p>
+					<strong>ResponseGenerator: </strong>
+					Reads the file content from "file" port and MIME type information from the "mime" port and produces the HTTP response
+					to the "output" port. It also accept some signals (400, 403, 500) to produces error responses.</p>
+				</li>
+			</ul>
+		</p>
+		<p>
+			The external request comes from the input node. Once a request have been received, it will be handled by the request parser. 
+			And the content of the request will be sent to the "request" port of RequestParser.
+		</p>
+		<p>
+			After the request parser parsed the request, the path the client requesting will be sent to the path parser. And the PathParser
+			is responsible to simplify the path and extract the extension name of the requested file.
+		</p>
+		<p>
+			After that the MIME guesser will take the extension name extracted by the PathParser, and determine which MIME type we should use
+			in the response.
+		</p>
+		<p>
+			At the same time, the relative path will be sent to the file reader. It will read the file from the disk and sends
+			the content of the file to the response generator.
+		</p>
+		<p>
+			Finally, the response generator takes the file content and MIME type information to produce a HTTP response for the client.
+		</p>
+		<h2 class="section">How is the service graph created?</h2>
+		<p>
+			A service is defined by the service graph literal in the PSS language, and once you run the <em>start</em> statement
+			in the PSS, the service described by the service graph will start serving traffic. 		
+		</p>
+		<p>
+			As we previously said, it's created by the service graph literal in the Plumber Service Script language. The service literal
+			is a simple domain specific language used to connect different servlet node into a service graph. It should be wrapped with a 
+			pair of curly braces, for example:
+		</p>
+		<p>
+			<code class="pss">service_graph = { 
+	// Your service definition comes here
+}</code>
+		</p>
+		<p>
+			The service definition has two parts, the node definition and the graph definition. The nodes definition defines what servlet do
+			we have in the service graph. It looks like
+			<p>
+				<code class="pss">dup_your_input := "dataflow/dup 3";</code>
+			</p>
+			This will create a node which reads from the input pipe and produces 3 copies of the input.
+		</p>
+
+		<p>
+			Once we have all the servlet nodes we need in the graph, we will be able to connect them and build the service we want. The basic syntax
+			to connect two endpoints are quite straight forward. It looks like:
+			<p>
+				<code class="pss">upstream_node "output" -&gt; "input" downstream_node;</code>
+			</p>
+			Similarly, use the following syntax to define the input of the entire service
+			<p>
+				<code class="pss">() -&gt; "input" input_node;</code>
+			</p>
+			and output of the service service.
+			<p>
+				<code class="pss">output_node "output" -&gt; ();</code>
+			</p>
+		</p>
+		<p>
+			To make life easier, the PSS provides syntactical sugar to reduce the code to write. First, we can chaining the
+			pipe definition. For example
+			<p>
+				<code class="pss">nodeA "output" -&gt; "input" nodeB "output" -&gt; "input" nodeC;</code>
+			</p>
+			<p>
+			means 
+			</p>
+			<p>
+				<code class="pss">nodeA "output" -&gt; "input" nodeB;
+nodeB "output" -&gt; "input" nodeC; </code>
+			</p>
+		</p>
+		<p>
+			Second, we can simplify the code when we are talking about the different port of the same servlet, for example
+			<p>
+				<code class="pss">nodeA {
+	"output1" -&gt; "input" nodeB;
+	"output2" -&gt; "input" nodeC;
+}</code>
+			</p>
+			<p>
+			means
+			</p>
+			<p>
+				<code class="pss">nodeA "output1" -&gt; "input" nodeB;
+nodeA "output2" -&gt; "input" nodeC;</code>
+			We can use this syntax for either inputs or outputs, or even both, for example:
+			</p>
+			<p>
+				<code class="pss">nodeA {
+	"output1" -&gt; "input1";
+	"output2" -&gt; "input2";
+} nodeB;</code>
+			</p>
+			<p>
+			means
+			</p>
+			<p>
+				<code class="pss">nodeA "output1" -&gt; "input1" nodeB;
+nodeA "output2" -&gt; "input2" nodeB;</code>
+			</p>
+		</p>
+
+		<h2 class="section">Graph in Real World</h2>
+		<p>
+			Now let's look at our static file server again and translate the graph shown above to serivce literal
+		</p>
+		<center><img src="service_graph.png" style="width:400px"/></center>
+		<p>
+			<code class="pss">file_server = {
+	// Definition of the nodes we need to use
+	RequestParser     := "parsereq";
+	PathParser        := "filesystem/parsepath --ext-name";
+	FileReader        := "filesystem/readfile ./environment/server_files";
+	MIMEGuesser       := "filesystem/mime ./environment/mime.types";
+	ResponseGenerator := "genres";
+
+	// Definition of the interconnections
+	() -&gt; "request" RequestParser "path" -&gt; "origin" PathParser {
+		"relative" -&gt; "path" FileReader "result" -&gt; "file";
+		"extname" -&gt; "extname" MIMEGuesser "mimetype" -&gt; "mime";
+	} ResponseGenerator "output" -&gt; ();
+}</code>
+		</p>
+		<h2 class="section">Adding error handling to the service</h2>
+		<p>	
+			Here's one more question remaining, what if someting is wrong with our server. For the 404 error is handled by the file reader. 
+			However what if the server gets an invalid request, or a request trying accessing system file? What can we do when a servlet fails.
+			In this case, we need error handling.
+		</p>
+		<p>
+			In order to handle the servlet failure, the Plumber framework provides a mechanism called signal pipes. The framework will automatically
+			define a pipe called "__error__" for every servlet (which is perviously visualized as port "E"), and it will be empty if the servlet 
+			runs sucessfully. However, it will be written by the framework whenever the servlet returns an error code. So handling the servlet 
+			failure is quite simple in this way. 
+			<p>
+				<code class="pss">ErrorCombiner := "dataflow/firstnonempty 4";
+{
+	RequestParser  "__error__" -&gt; "in0";
+	PathParser     "__error__" -&gt; "in1";
+	FileReader     "__error__" -&gt; "in2";
+	MIMEGuesser    "__error__" -&gt; "in3";
+} ErrorCombiner "out" -&gt; "500" ResponseGenerator; </code>
+			</p>
+			<p>
+				You may ask what if the ErrorCombiner or ResponseGenerator fails? Well, consider other HTTP server, if there's some
+				failure with code that produces HTTP response, there's no way for client to see even a 500 response. 
+				The situation in here is similar, if those nodes fails, it's quite normal for the client to get an empty result.
+			</p>
+			<p>
+			Similarly, the node PathParser won't let any dangerous path to pass through, for example "../../../password.txt". In this case, we need
+			another type of signal pipe, "__null__". This is the signal pipe that will be activated when there's no other pipes havev been touched. 
+			In our example, when the PathParser rejects the input path, there will be no output in normal port, but "__null__" pipe will be activated. 
+			In this case, we should return a forbiden response.
+			<p>
+				<code class="pss">PathParser "__null__" -&gt; "403" ResponseGenerator;</code>
+			</p>
+			<p>
+			Finally, let's think about what if the server gets a malformed HTTP request from network. In this case, the "error" pipe of RequestParser will
+			have some output, and we should let the response render know about this and produce a bad request response.
+			<p>
+				<code class="pss">RequestParser "error" -&gt; "400" ResponseGenerator;</code>
+			</p>
+		</p>
+		<h2 class="section">How is our server listening</h2>
+		<p>
+			Now we have a service graph serves the static content and handling the errors. But, how the service listening to the outside and serve traffic ?
+			The Plumber framework uses an unified pipelining interface, and below the interface, the IO Modules are used to perform the actual IO operation. 
+			The TCP protocol is wrapped by an IO module called TCP Pipe Module. And the module is responsible for listening to the outside of the world. 
+			<p>
+				<code class="pss">insmod("tcp_pipe 8080");</code>
+			</p>
+		</p>
+		<p>
+			The code above will initialize a TCP module which listening to the 8080 port. Once there's an HTTP request, the TCP module will bubble a event and
+			the event will activate the service graph. Of couses, you are able to initialize multiple TCP modules on different TCP ports at the same time, 
+			so that our server will be able to serve on different ports at the same time.
+		</p>
+		<p>
+			Also we have a module called TLS module which implements TLS over other IO module. You are able to initialize a TLS module over a TCP module to 
+			enable the HTTPS support.
+			<p>
+				<code class="pss">insmod("tcp_pipe --slave 4343)";
+insmod("tls_pipe cert=cert.pem key=key.pem pipe.tcp.port_4343");</code>
+			</p>
+		</p>
+		</p>
+	</body>
+</html>

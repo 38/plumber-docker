@@ -1,0 +1,44 @@
+#!/bin/env pscript
+/**
+ * Copyright (C) 2017, Hao Hou
+ **/
+/* The main script for the static file server */
+
+// Load the configuration
+import("service");
+import("/fileserver/config");
+
+//define the file server
+fileserver = {
+	RequestParser      := "getpath";
+	PathParser         := "filesystem/parsepath --ext-name";
+	MIMEGuesser        := "filesystem/mimetype " + mime_type_file;
+	FileReader         := "filesystem/readfile " + server_base_dir;
+	ResponseGenerator  := "response";
+
+	/* Setup normal logic */
+	() -> "request" RequestParser "path" -> "origin" PathParser {
+		"extname" ->  "extname" MIMEGuesser "mimetype" -> "mime";
+		"relative" -> "path" FileReader "result" -> "file"
+	} ResponseGenerator "output" -> ();
+
+
+	/* What if we got an invalid request */
+	RequestParser "error" -> "400" ResponseGenerator;
+
+	/* What if we got an invalid path */
+	PathParser "__null__" -> "403" ResponseGenerator;
+
+	/* Let's handle the unexpected service error */
+	{
+		PathParser    "__error__" -> "500";
+		RequestParser "__error__" -> "500";
+		MIMEGuesser   "__error__" -> "500";
+		FileReader    "__error__" -> "500";
+	} ResponseGenerator;
+};
+/* (Optional) dump the visualization graph */
+Service.visualize(fileserver);
+
+/* start the file server */
+Service.start(fileserver);

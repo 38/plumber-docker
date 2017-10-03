@@ -1,3 +1,4 @@
+ARG TREE_HASH=undefined
 FROM scratch
 COPY busybox /bin/sh
 COPY busybox /bin/busybox

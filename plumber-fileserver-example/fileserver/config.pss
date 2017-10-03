@@ -6,7 +6,7 @@
 
 basedir = "/fileserver/environment";
 mime_type_file = basedir + "/mime.types";   //The mime.types file 
-server_base_dir = basedir + "/server_files"; //The server base dir
+server_base_dir = argv[2]; //The server base dir
 server_base_dir_2 = basedir + "/server_files_2"; //Another base dir, only used by the VHost example
 
 // Make sure the Plumber Standard Service Module, a.k.a PSSM has been loaded
@@ -27,7 +27,7 @@ if (pipe.mem == undefined) insmod("mem_pipe");
 	$global[path + ".size"] = 65536;
 	$global[path + ".ttl"] = 240;
 	$global[path + ".reuseaddr"] = 1;
-})(8080);
+})(argv[1]);
 
 // Now setup the HTTPS support
 (function _configue_tls(port)

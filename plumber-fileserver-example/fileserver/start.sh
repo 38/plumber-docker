@@ -3,13 +3,13 @@ if [ -e "$1" ]
 then
 	exec $@
 else
-	ulimit -n unlimited
+	ulimit -n `ulimit -H -n`
 	ulimit -n
 	mkdir -p /var/log/plumber
-	mkdir -p /etc/plumber/log.cfg
-	echo "ERROR /var/log/plumber/error.log ae" >> /etc/log/plumber
-	echo "FATAL /var/log/plumber/error.log ae" >> /etc/log/plumber
-	echo "default /var/log/plumber/info.log a" >> /etc/log/plumber
+	mkdir -p /etc/plumber
+	echo "ERROR /var/log/plumber/error.log ae" >> /etc/plumber/log.cfg
+	echo "FATAL /var/log/plumber/error.log ae" >> /etc/plumber/log.cfg
+	echo "default /var/log/plumber/info.log a" >> /etc/plumber/log.cfg
 
 	port=80
 	root=/fileserver/environment/server_files
@@ -25,5 +25,5 @@ else
 			;;
 		esac
 	done
-	echo exec /fileserver/fileserver.pss ${port} ${root}
+	exec /fileserver/fileserver.pss ${port} ${root}
 fi

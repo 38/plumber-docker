@@ -1,5 +1,5 @@
-ARG TREE_HASH=undefined
 FROM scratch
+ARG TREE_HASH=undefined
 COPY busybox /bin/sh
 COPY busybox /bin/busybox
 COPY install-bin /bin/

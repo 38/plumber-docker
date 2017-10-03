@@ -1,4 +1,4 @@
 FROM haohou/plumber-minimal
 COPY fileserver /fileserver
-RUN echo ${TREE_HASH} > .tree_hash
+ENV GIT_TREE_HASH=$TREE_HASH
 ENTRYPOINT ["/fileserver/start.sh"]

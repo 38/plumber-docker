@@ -43,6 +43,7 @@ find /var >> before.txt
 make -j 8 install
 sh install-prototype.sh
 cp misc/script/* /bin/
+sed -i 's/\/usr\/bin\/env/\/bin\/env/g' /bin/plumber-*
 find /bin > after.txt
 find /lib >> after.txt
 find /lib64 >> after.txt

@@ -31,7 +31,7 @@ if [ -e "$1" ]
 then
 	exec $@
 else
-	while true
+	while ["`pscript -e 'import("daemon"); Daemon.ping("plumber-server")'`" = "1" ]
 	do
 		sleep 600
 	done

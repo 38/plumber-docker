@@ -24,7 +24,7 @@ then
 			;;
 		esac
 	done
-	exec /fileserver/fileserver.pss ${port} ${root}
+	pscript /fileserver/fileserver.pss ${port} ${root}
 fi
 
 if [ -e "$1" ]

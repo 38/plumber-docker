@@ -31,5 +31,8 @@ if [ -e "$1" ]
 then
 	exec $@
 else
-	exec /bin/sh
+	while true
+	do
+		sleep 600
+	done
 fi

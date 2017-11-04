@@ -42,6 +42,7 @@ find /lib64 >> before.txt
 find /var >> before.txt
 make -j 8 install
 sh install-prototype.sh
+cp misc/script/* /bin/
 find /bin > after.txt
 find /lib >> after.txt
 find /lib64 >> after.txt

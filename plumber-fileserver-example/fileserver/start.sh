@@ -30,4 +30,6 @@ fi
 if [ -e "$1" ]
 then
 	exec $@
+else
+	exec /bin/sh
 fi

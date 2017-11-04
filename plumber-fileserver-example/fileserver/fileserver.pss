@@ -37,6 +37,9 @@ fileserver = {
 		FileReader    "__error__" -> "500";
 	} ResponseGenerator;
 };
+
+runtime.daemon.id = "plumber-server";
+
 /* (Optional) dump the visualization graph */
 Service.visualize(fileserver);
 

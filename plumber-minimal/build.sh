@@ -34,7 +34,7 @@ find /etc > /new_etc.txt
 
 # Let's build plumber at this point
 git clone http://github.com/38/plumber.git
-git clone http://github.com/38/plumverv8.git
+git clone http://github.com/38/plumberv8.git
 cd plumber
 ../plumberv8/buildv8 --install-only=http://plumberserver.com/data/plumberv8-prebuild.6.3.0.x64.release.tar.gz --prefix=/
 O=5 L=3 cmake -DCMAKE_INSTALL_PREFIX=/ -DPLUMBER_V8_PREFIX=/ -Dbuild_language_javascript=yes . 

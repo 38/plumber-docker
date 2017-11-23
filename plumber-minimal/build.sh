@@ -28,14 +28,16 @@ tar -xzvf ubuntu.tar.gz
 mkdir /tmp
 apt-get update
 apt-get upgrade
-apt-get install -y  --allow-unauthenticated git cmake gcc g++ uuid-dev libssl-dev doxygen pkg-config python2.7 libpython2.7-dev libreadline-dev zsh
+apt-get install -y  --allow-unauthenticated git cmake gcc g++ uuid-dev libssl-dev doxygen pkg-config python2.7 libpython2.7-dev libreadline-dev zsh libc++-dev
 
 find /etc > /new_etc.txt
 
 # Let's build plumber at this point
 git clone http://github.com/38/plumber.git
+git clone http://github.com/38/plumverv8.git
 cd plumber
-O=4 L=3 cmake -DCMAKE_INSTALL_PREFIX=/ . 
+../plumverv8/buildv8 --install-only=http://plumberserver.com/data/plumberv8-prebuild.6.3.0.x64.release.tar.gz --prefix=/
+O=5 L=3 cmake -DCMAKE_INSTALL_PREFIX=/ -DPLUMVER_V8_PREFIX=/ -Dbuild_language_javascript=yes . 
 find /bin > before.txt
 find /lib >> before.txt
 find /lib64 >> before.txt

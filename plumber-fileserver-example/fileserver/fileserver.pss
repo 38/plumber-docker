@@ -9,6 +9,8 @@ import("service");
 import("servlet");
 import("/fileserver/config");
 
+print("Plumber Static File Server is serving files under directory " + server_base_dir);
+
 //define the file server
 fileserver = {
 	RequestParser      := "getpath";

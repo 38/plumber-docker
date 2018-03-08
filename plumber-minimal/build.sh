@@ -21,13 +21,13 @@ done
 find /etc > /old_etc.txt
 
 # Now we have a lot of commands
-wget http://plumberserver.com/data/ubuntu.tar.gz
+wget http://home.chpc.utah.edu/~u0875014/ubuntu.tar.gz
 tar -xzvf ubuntu.tar.gz
 
 # Ok, now we have ubuntu this time
 mkdir /tmp
-apt-get update
-apt-get upgrade
+apt-get update 
+apt-get upgrade -y --allow-unauthenticated
 apt-get install -y  --allow-unauthenticated git cmake gcc g++ uuid-dev libssl-dev doxygen pkg-config python2.7 libpython2.7-dev libreadline-dev zsh
 
 find /etc > /new_etc.txt
@@ -35,7 +35,7 @@ find /etc > /new_etc.txt
 # Let's build plumber at this point
 git clone http://github.com/38/plumber.git
 cd plumber
-O=4 L=3 cmake -DCMAKE_INSTALL_PREFIX=/ . 
+O=4 L=3 cmake -DCMAKE_INSTALL_PREFIX=/ -Dbuild_language_pyservlet=no . 
 find /bin > before.txt
 find /lib >> before.txt
 find /lib64 >> before.txt

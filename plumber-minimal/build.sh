@@ -35,7 +35,7 @@ find /etc > /new_etc.txt
 # Let's build plumber at this point
 git clone http://github.com/38/plumber.git
 cd plumber
-O=4 L=3 cmake -DCMAKE_INSTALL_PREFIX=/ -Dbuild_language_pyservlet=no . 
+O=5 L=3 cmake -DCMAKE_INSTALL_PREFIX=/ -Dbuild_language_pyservlet=no . 
 find /bin > before.txt
 find /lib >> before.txt
 find /lib64 >> before.txt

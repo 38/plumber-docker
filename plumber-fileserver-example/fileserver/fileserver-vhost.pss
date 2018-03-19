@@ -5,9 +5,69 @@
 
 /* The Virtual Hosting Static File Server Example */
 import("service");
+import("servlet");
 import("config");
+import("options");
+import("daemon");
 
-var get_reader = function(site_list)
+var template = Options.empty_template();
+Options.add_option(template, "--foreground", "-F", "Start the file server in foreground", 0, 0);
+Options.add_option(template, "--help", "-h", "Print this help message", 0, 0);
+Options.add_option(template, "--tcp-port", "-p", "Set the TCP port", 1, 1);
+Options.add_option(template, "--tls-port", "-P", "Set the TLS port", 1, 1);
+Options.add_option(template, "--threads", "-t", "The number of worker threads", 1, 1);
+Options.add_option(template, "--show-graph", "-S", "Show the service graph and exit", 0, 0);
+Options.add_option(template, "--upgrade-http", "-U", "Upgrade HTTP to HTTPS", 0, 0);
+options = Options.parse(template, argv);
+
+import("config.pss");
+
+var print_help = function() 
+{
+	print("The Simple Plumber Static Content Server");
+	print("Usage: ", options["program"], " [arguments]");
+	print("Arguments:");
+	Options.print_help(template);
+}
+
+if(len(options["unparsed"]) > 0)
+{
+	print_help();
+	exit(1);
+}
+
+if(options["parsed"]["--help"] != undefined)
+{
+	print_help();
+	exit(0);
+}
+
+# To redirect the port
+if(options["parsed"]["--upgrade-http"] != undefined)
+{
+	plumber.std.libconf.http.upgrade = 1;
+	plumber.std.libconf.http.upgrade_port = read_opt("--tls-port", 4343);
+}
+
+
+var create_reverse_proxy = function (remote_host, remote_base)
+{
+	var ret = {
+		Rewrite := "rewrite " + remote_host + " " + remote_base;
+		Proxy   := "network/http/proxy -P 1024 -p 1024 -T 30";
+		Merger  := "dataflow/firstnonempty 2";
+
+		(request) -> "input" Rewrite "output" -> "request" Proxy "response" -> (response);
+		{
+			Rewrite "__error__" -> "in0";
+			Proxy   "__error__" -> "in1";
+		} Merger "out" -> (__error__);
+	};
+
+	return ret;
+}
+
+var create_server = function (site_list)
 {
 	var num_sites = len(site_list);
 
@@ -16,100 +76,106 @@ var get_reader = function(site_list)
 		print("Site list must have a default site");
 		return undefined;
 	}
-	
-	var selector_init_arg = "dataflow/demux";
 
-	for(var site in site_list)
-	{
-		if(site != "__default__")
-			selector_init_arg += " " + site;
-	}
-
-	var reader = {
-		selector    := selector_init_arg; 
-		merger      := "dataflow/firstnonempty " + num_sites;
-		error       := "dataflow/firstnonempty " + (2 + num_sites);
-		{
-			(path) -> "data";
-			(host) -> "cond";
-		} selector;
-
-		merger "out" -> (out);
-
-		{
-			selector "__error__" -> "in0";
-			merger   "__error__" -> "in1";
-		} error "out" -> (__error__);
-	};
-	
+	var init_param = "network/http/parser";
 	var id = 0;
-	var outid = 0;
-	for(var site in site_list)
-	{
-		var name = "readfile_" + id;
-		var selector_port = "out" + outid;
+	
+	var ret = {
+		Render := "network/http/render --chunked --proxy";
 
-		if(site == "__default__") selector_port = "default";
-		else outid ++;
-
-		Service.add_node(reader, name, "filesystem/readfile " + site_list[site]);
-		Service.add_pipe(reader, "selector", selector_port, "path", name);
-		Service.add_pipe(reader, name, "result", "in" + id, "merger");
-		Service.add_pipe(reader, name, "__error__", "in" + (2 + id), "error");
-		id++;
-	}
-
-	return reader;
-}
-
-var create_service = function(site_list)
-{
-	var fileserver = {
-		parsereq    := "getpath";
-		parsepath   := "filesystem/parsepath --ext-name";
-		guessmime   := "filesystem/mimetype " + mime_type_file;
-		reader      := get_reader(site_list);
-		error       := "dataflow/firstnonempty 4";
-		genres      := "response";
-
-		/* Parse the request */
-		() -> "request" parsereq {
-			"path" -> "origin" parsepath {
-				/* This is the dataflow for the mime type manipulation */
-				"extname" -> "extname" guessmime "mimetype" -> "mime" genres;
-				/* Here we need to feed the demux */
-				"relative" -> "path" reader;
-			};
-			"host" -> "host" reader;
-		};
-		
-		reader "out" -> "file" genres "output" -> ();
-
-		/* Handle the internal error */
-		{
-			parsereq   "__error__" -> "in0";
-			parsepath  "__error__" -> "in1";
-			guessmime  "__error__" -> "in2";
-			reader     "__error__" -> "in3";
-		} error "out" -> "500" genres;
-
-		/* Handle the 400 error */
-		parsereq "error" -> "400" genres;
-
-		/* Handle the 403 error */
-		parsepath "__null__" -> "403" genres;
+		() -> "input" Parser "protocol_data" -> "protocol_data" Render "output" -> ();
 	};
 
-	return fileserver;
+	for(var key in site_list)
+	{
+		var port = "site_" + id;
+
+		if(key == "__default__") 
+		{
+			port = "default";
+			if(site_list[key]["https"] == 1)
+				init_param += " --upgrade-default";
+			else if(site_list[key]["https"] != undefined)
+				init_param += " --upgrade-default " + site_list[key]["https"];
+		}
+		else 
+		{
+			var upgrade_suffix = ""
+			if(site_list[key]["https"] == 1)
+				upgrade_suffix = ";upgrade_http"
+			else if(site_list[key]["https"] != undefined)
+				upgrade_suffix = ";upgrade_http:" + site_list[key]["https"];
+			init_param += " --route " + "name:site_" + (id) + ";prefix:" + key + upgrade_suffix;
+		}
+
+		if(site_list[key]["type"] == "static")
+		{
+			Service.add_node(ret, port, Servlet.init("filesystem/readfile", {
+				"root"          : site_list[key]["root"],
+				"mime-map-file" : mime_type_file,
+				"input-mode"    : "http",
+				"output-mode"   : "http",
+				"range-access"  : undefined,
+				"compressable"      : "text/*,application/*javascript*,application/*xml*,application/*json*"   	
+			}));
+
+			Service.add_pipe(ret, port, "__error__", "500", "Render");
+			Service.add_pipe(ret, "Parser", port, "request", port);
+			Service.add_pipe(ret, port, "file", "response", "Render");
+		}
+		else if(site_list[key]["type"] == "proxy")
+		{
+			Service.add_node(ret, port, create_reverse_proxy(site_list[key]["host"], site_list[key]["base"]));
+
+			Service.add_pipe(ret, port, "__error__", "500", "Render");
+			Service.add_pipe(ret, "Parser", port, "request", port);
+			Service.add_pipe(ret, port, "response", "proxy", "Render");
+		}
+		id ++;
+	}
+
+	Service.add_node(ret, "Parser", init_param);
+
+	return ret;
 }
 
-server = create_service({
-	"localhost:8080": server_base_dir,
-	__default__     : server_base_dir_2
-});
+var site_list = {
+	"__default__": {
+		"type": "static",
+		"root": server_base_dir
+	},
+	"localhost:8080/jenkins": {
+		"type": "proxy",
+		"host": "plumberserver.com:8123",
+		"base": "/jenkins"
+	},
+	"localhost:4343/" : {
+		"type": "static",
+		"root": server_base_dir_2
+	}
+};
 
-/* dump the visualization graph */
-Service.visualize(server);
+fileserver = create_server(site_list);
 
-/* then start the file server */
-Service.start(server);
+if(options["parsed"]["--foreground"] == undefined)
+{
+	runtime.daemon.id = "plumber-file-server";
+	runtime.daemon.admin_group = "docker";
+}
+
+if(options["parsed"]["--show-graph"] != undefined)
+{
+	Service.visualize(fileserver);
+	exit(0);
+}
+
+if(options["parsed"]["--foreground"] == undefined && Daemon.ping(runtime.daemon.id))
+{
+	print("Updating existing daemon");
+	Daemon.reload(runtime.daemon.id, fileserver);
+}
+else
+{
+	print("Starting new daemon");
+	Service.start(fileserver);
+}

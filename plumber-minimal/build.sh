@@ -21,7 +21,7 @@ done
 find /etc > /old_etc.txt
 
 # Now we have a lot of commands
-wget http://home.chpc.utah.edu/~u0875014/ubuntu.tar.gz
+wget http://plumberserver.com/downloads/ubuntu.tar.gz
 tar -xzvf ubuntu.tar.gz
 
 # Ok, now we have ubuntu this time

@@ -13,33 +13,28 @@ print("Plumber Static File Server is serving files under directory " + server_ba
 
 //define the file server
 fileserver = {
-	RequestParser      := "getpath";
-	FileReader         := Servlet.init("filesystem/readfile",{
-		"root"           : server_base_dir,
-		"mime-map-file"  : mime_type_file,
-		"input-mode"     : "string",
-		"output-mode"    : "http",
-		"default-index"  : yes,
-		"compressable"   : "application/*xml*,application/*javascript*,text/*"
+	RequestParser      := "network/http/parser";
+	FileReader         := Servlet.init("filesystem/readfile", {
+		"root"              : server_base_dir,       /* The default directory */
+		"mime-map-file"     : mime_type_file,        /* The MIME type spec, using apache format */
+		"input-mode"        : "http",                /* Takes an HTTP request */
+		"output-mode"       : "http",                /* Produces an HTTP response */
+		"range-access"      : undefined,             /* Allow access a range */
+		"compressable"      : "text/*,application/*javascript*,application/*xml*,application/*json*"   	
 	});
-	ResponseGenerator  := "network/http/render --gzip --deflate --chunked";
+	ResponseGenerator  := "network/http/render --chunked --gzip --deflate";
 
 	/* Setup normal logic */
-	() -> "request" RequestParser {
-		"path" -> "path" FileReader "file" -> "response";
-		"accept_encoding" -> "accept_encoding";
+	() -> "input" RequestParser {
+		"protocol_data" -> "protocol_data";
+		"default" -> "request" FileReader "file" -> "response";
 	} ResponseGenerator "output" -> ();
 
 	/* Let's handle the unexpected service error */
 	{
-		FileReader    "__error__" -> "500";
+		RequestParser    "__error__" -> "500";
+		FileReader       "__error__" -> "500";
 	} ResponseGenerator;
 };
 
-runtime.daemon.id = "plumber-server";
-
-/* (Optional) dump the visualization graph */
-Service.visualize(fileserver);
-
-/* start the file server */
 Service.start(fileserver);

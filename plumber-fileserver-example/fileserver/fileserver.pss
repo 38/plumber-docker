@@ -20,7 +20,8 @@ fileserver = {
 		"input-mode"        : "http",                /* Takes an HTTP request */
 		"output-mode"       : "http",                /* Produces an HTTP response */
 		"range-access"      : undefined,             /* Allow access a range */
-		"compressable"      : "text/*,application/*javascript*,application/*xml*,application/*json*"   	
+		"compressable"      : "text/*,application/*javascript*,application/*xml*,application/*json*",
+		"default-index"     : undefined
 	});
 	ResponseGenerator  := "network/http/render --chunked --gzip --deflate";
 
